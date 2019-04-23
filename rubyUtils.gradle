@@ -305,7 +305,7 @@ void generateRubySupportFilesForPlugin(String projectDescription, String project
     gemspecFile.append("  s.files = Dir[\"lib/**/*\",\"*.gemspec\",\"*.md\",\"CONTRIBUTORS\",\"Gemfile\",\"LICENSE\",\"NOTICE.TXT\", \"vendor/jar-dependencies/**/*.jar\", \"vendor/jar-dependencies/**/*.rb\", \"VERSION\", \"docs/**/*\"]\n")
     gemspecFile.append("\n")
     gemspecFile.append("  # Special flag to let us know this is actually a logstash plugin\n")
-    gemspecFile.append("  s.metadata = { 'logstash_plugin' => 'true', 'logstash_group' => '" + pluginInfo.pluginType + "'}\n")
+    gemspecFile.append("  s.metadata = { 'logstash_plugin' => 'true', 'logstash_group' => '" + pluginInfo.pluginType + "', 'java_plugin' => 'true'}\n")
     gemspecFile.append("\n")
     gemspecFile.append("  # Gem dependencies\n")
     gemspecFile.append("  s.add_runtime_dependency \"logstash-core-plugin-api\", \">= 1.60\", \"<= 2.99\"\n")
@@ -326,7 +326,7 @@ void generateRubySupportFilesForPlugin(String projectDescription, String project
     pluginRb.append("class LogStash::" + moduleName + "::" + pluginInfo.pluginClass + " < LogStash::" + moduleName + "::Base\n")
     pluginRb.append("  config_name \"" + pluginInfo.pluginName + "\"\n")
     pluginRb.append("\n")
-    pluginRb.append("  def self.javaClass() " + projectGroup + "." + pluginInfo.pluginClass + ".java_class; end\n")
+    pluginRb.append("  def self.javaClass() Java::" + projectGroup + "." + pluginInfo.pluginClass + ".java_class; end\n")
     pluginRb.append("end\n")
 
     File pluginJarsRb = file("lib/" + pluginInfo.pluginFullName() + "_jars.rb")
@@ -339,6 +339,13 @@ void generateRubySupportFilesForPlugin(String projectDescription, String project
 
 void validatePluginJar(File pluginJar, String group) {
     List<String> validationErrors = new ArrayList<>()
+
+    if (group.equals('org.logstash') || group.startsWith('org.logstash.') || group.equals('co.elastic.logstash') || group.startsWith('co.elastic.logstash.')) {
+        validationErrors.add("The plugin should not be placed in the 'org.logstash' or 'co.elastic.logstash' packages")
+        throw new GradleScriptException("Plugin validation errors:" + System.lineSeparator() +
+                String.join(System.lineSeparator(), validationErrors), null)
+    }
+
     URLClassLoader cl = URLClassLoader.newInstance([pluginJar.toURI().toURL()] as URL[])
     String pluginClassName = group + "." + pluginInfo.pluginClass
 
@@ -347,7 +354,8 @@ void validatePluginJar(File pluginJar, String group) {
         pluginClass = cl.loadClass(pluginClassName)
     } catch (ClassNotFoundException ex) {
         validationErrors.add(String.format("Unable to locate plugin class defined in build.gradle as '%s' in jar '%s'", pluginClassName, pluginJar))
-        return
+        throw new GradleScriptException("Plugin validation errors:" + System.lineSeparator() +
+                String.join(System.lineSeparator(), validationErrors), null)
     }
 
     if (pluginClass != null) {

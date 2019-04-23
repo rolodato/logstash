@@ -16,6 +16,7 @@ import org.jruby.RubyString;
 import org.jruby.RubySymbol;
 import org.jruby.anno.JRubyClass;
 import org.jruby.anno.JRubyMethod;
+import org.jruby.java.proxies.JavaProxy;
 import org.jruby.javasupport.JavaUtil;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -262,7 +263,7 @@ public final class PluginFactoryExt {
                 }
             } else {
                 if (type == PluginLookup.PluginType.OUTPUT) {
-                    final Class<Output> cls = (Class<Output>) pluginClass.klass();
+                    final Class<Output> cls = (Class<Output>) unwrapIfNecessary(pluginClass.klass());
                     Output output = null;
                     if (cls != null) {
                         try {
@@ -281,7 +282,7 @@ public final class PluginFactoryExt {
                         throw new IllegalStateException("Unable to instantiate output: " + pluginClass);
                     }
                 } else if (type == PluginLookup.PluginType.FILTER) {
-                    final Class<Filter> cls = (Class<Filter>) pluginClass.klass();
+                    final Class<Filter> cls = (Class<Filter>) unwrapIfNecessary(pluginClass.klass());
                     Filter filter = null;
                     if (cls != null) {
                         try {
@@ -300,7 +301,7 @@ public final class PluginFactoryExt {
                         throw new IllegalStateException("Unable to instantiate filter: " + pluginClass);
                     }
                 } else if (type == PluginLookup.PluginType.INPUT) {
-                    final Class<Input> cls = (Class<Input>) pluginClass.klass();
+                    final Class<Input> cls = (Class<Input>) unwrapIfNecessary(pluginClass.klass());
                     Input input = null;
                     if (cls != null) {
                         try {
@@ -322,7 +323,7 @@ public final class PluginFactoryExt {
                         throw new IllegalStateException("Unable to instantiate input: " + pluginClass);
                     }
                 } else if (type == PluginLookup.PluginType.CODEC) {
-                    final Class<Codec> cls = (Class<Codec>) pluginClass.klass();
+                    final Class<Codec> cls = (Class<Codec>) unwrapIfNecessary(pluginClass.klass());
                     Codec codec = null;
                     if (cls != null) {
                         try {
@@ -349,6 +350,10 @@ public final class PluginFactoryExt {
                 }
             }
         }
+    }
+
+    private static Object unwrapIfNecessary(Object o) {
+        return (o instanceof JavaProxy) ? ((JavaProxy) o).getObject() : o;
     }
 
     @JRubyClass(name = "ExecutionContextFactory")

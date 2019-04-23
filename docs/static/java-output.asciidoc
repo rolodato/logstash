@@ -99,6 +99,8 @@ Notes about the class declaration:
    Logstash pipeline definition as `output { java_output_example => { .... } }`
 ** The value of the `name` property must match the name of the class excluding casing and underscores.
 * The class must implement the `co.elastic.logstash.api.Output` interface.
+* Java plugins may not be created in the `org.logstash` or `co.elastic.logstash` packages to prevent potential
+clashes with classes in Logstash itself.
 
 [float]
 ==== Plugin settings
