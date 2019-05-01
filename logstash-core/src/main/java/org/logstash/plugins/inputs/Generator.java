@@ -42,7 +42,7 @@ public class Generator implements Input {
     private String id;
     private long threads;
     private volatile boolean stopRequested = false;
-    private CountDownLatch[] countDownLatches;
+    private CountDownLatch countDownLatch;
     private String[] lines;
     private int[] linesIndex;
     private long[] sequence;
@@ -64,6 +64,7 @@ public class Generator implements Input {
         if (this.threads < 1) {
             throw new IllegalStateException("May not specify fewer than one generator thread");
         }
+        this.countDownLatch = new CountDownLatch((int) threads);
 
         String host;
         try {
@@ -97,7 +98,6 @@ public class Generator implements Input {
 
     private void startUnthrottledGenerator(Consumer<Map<String, Object>> writer) {
         sequence = new long[(int) threads];
-        countDownLatches = new CountDownLatch[(int) threads];
         events = new ArrayList<>();
         linesIndex = new int[(int) threads];
 
@@ -106,11 +106,10 @@ public class Generator implements Input {
             event.put("hostname", hostname);
             event.put("thread_number", k);
             events.add(event);
-            countDownLatches[k] = new CountDownLatch(1);
             if (k > 0) {
                 final int finalK = k;
                 Thread t = new Thread(() -> {
-                    while (runGenerator(writer, finalK, () -> countDownLatches[finalK].countDown())) {
+                    while (runGenerator(writer, finalK, () -> countDownLatch.countDown())) {
                     }
                 });
                 t.setName("generator_" + getId() + "_" + k);
@@ -119,14 +118,13 @@ public class Generator implements Input {
         }
 
         // run first generator on this thread
-        while (runGenerator(writer, 0, () -> countDownLatches[0].countDown())) {}
+        while (runGenerator(writer, 0, () -> countDownLatch.countDown())) {}
     }
 
     private void startThrottledGenerator(Consumer<Map<String, Object>> writer) {
         ScheduledExecutorService ses = Executors.newScheduledThreadPool((int) threads);
         int delayMilli = (int) (1000.0 / eps);
         sequence = new long[(int) threads];
-        countDownLatches = new CountDownLatch[(int) threads];
         futures = new ScheduledFuture<?>[(int) threads];
         events = new ArrayList<>();
         linesIndex = new int[(int) threads];
@@ -135,10 +133,9 @@ public class Generator implements Input {
             event.put("hostname", hostname);
             event.put("thread_number", k);
             events.add(event);
-            countDownLatches[k] = new CountDownLatch(1);
             final int finalk = k;
             futures[k] = ses.scheduleAtFixedRate(() -> runGenerator(writer, finalk, () -> {
-                        countDownLatches[finalk].countDown();
+                        countDownLatch.countDown();
                         futures[finalk].cancel(false);
                     }),0, delayMilli, TimeUnit.MILLISECONDS);
         }
@@ -184,9 +181,7 @@ public class Generator implements Input {
 
     @Override
     public void awaitStop() throws InterruptedException {
-        for (int k = 0; k < threads; k++) {
-            countDownLatches[k].await();
-        }
+        countDownLatch.await();
     }
 
     @Override

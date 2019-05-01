@@ -41,6 +41,7 @@ public class Dots implements Codec {
     @Override
     public void encode(Event event, OutputStream out) throws IOException {
         out.write('.');
+        out.flush();
     }
 
     @Override

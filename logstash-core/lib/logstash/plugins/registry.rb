@@ -136,8 +136,9 @@ module LogStash module Plugins
       GemRegistry.logstash_plugins.each do |plugin_context|
         if plugin_context.spec.metadata.key?('java_plugin')
           jar_files = plugin_context.spec.files.select {|f| f =~ /.*\.jar/}
-          if (jar_files.length != 1 || !jar_files[0].include?(plugin_context.spec.name))
-            raise LoadError, "Java plugin '#{plugin_context.spec.name}' does not contain a single jar file with the plugin's name"
+          expected_jar_name = plugin_context.spec.name + "-" + plugin_context.spec.version.to_s + ".jar"
+          if (jar_files.length != 1 || !jar_files[0].end_with?(expected_jar_name))
+            raise LoadError, "Java plugin '#{plugin_context.spec.name}' does not contain a single jar file with the plugin's name and version"
           end
           @java_plugins[plugin_context.spec.name] = [plugin_context.spec.loaded_from, jar_files[0]]
         end
@@ -278,7 +279,7 @@ module LogStash module Plugins
 
     def add_plugin(type, name, klass)
       if klass.respond_to?("javaClass", true)
-        if LogStash::SETTINGS.get_setting('pipeline.plugin_classloaders').value
+        if LogStash::SETTINGS.get_value('pipeline.plugin_classloaders')
           full_name = 'logstash-' + key_for(type, name)
           if @java_plugins.key?(full_name)
             plugin_paths = @java_plugins[full_name]
@@ -291,7 +292,8 @@ module LogStash module Plugins
 
           classloader = PluginClassLoader.create(plugin_paths[0], plugin_paths[1], Logstash.java_class.class_loader)
           klazz = classloader.load_class(klass.javaClass.name)
-          @registry[key_for(type, name)] = PluginSpecification.new(type, name, klazz)
+
+          @registry[key_for(type, name)] = PluginSpecification.new(type, name, klazz.ruby_class.java_class)
         else
           @registry[key_for(type, name)] = PluginSpecification.new(type, name, klass.javaClass)
         end

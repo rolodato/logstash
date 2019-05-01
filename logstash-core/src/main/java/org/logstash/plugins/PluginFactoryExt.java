@@ -1,8 +1,8 @@
 package org.logstash.plugins;
 
+import co.elastic.logstash.api.Codec;
 import co.elastic.logstash.api.Configuration;
 import co.elastic.logstash.api.Context;
-import co.elastic.logstash.api.Codec;
 import co.elastic.logstash.api.Filter;
 import co.elastic.logstash.api.Input;
 import co.elastic.logstash.api.Output;
@@ -16,7 +16,6 @@ import org.jruby.RubyString;
 import org.jruby.RubySymbol;
 import org.jruby.anno.JRubyClass;
 import org.jruby.anno.JRubyMethod;
-import org.jruby.java.proxies.JavaProxy;
 import org.jruby.javasupport.JavaUtil;
 import org.jruby.runtime.ThreadContext;
 import org.jruby.runtime.builtin.IRubyObject;
@@ -262,8 +261,14 @@ public final class PluginFactoryExt {
                     return pluginInstance;
                 }
             } else {
+                if (pluginArgs == null) {
+                    String err = String.format("Cannot start the Java plugin '%s' in the Ruby execution engine." +
+                            " The Java execution engine is required to run Java plugins.", name);
+                    throw new IllegalStateException(err);
+                }
+
                 if (type == PluginLookup.PluginType.OUTPUT) {
-                    final Class<Output> cls = (Class<Output>) unwrapIfNecessary(pluginClass.klass());
+                    final Class<Output> cls = (Class<Output>) pluginClass.klass();
                     Output output = null;
                     if (cls != null) {
                         try {
@@ -272,6 +277,9 @@ public final class PluginFactoryExt {
                             output = ctor.newInstance(id, config, executionContext.toContext(type));
                             PluginUtil.validateConfig(output, config);
                         } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | InvocationTargetException ex) {
+                            if (ex instanceof InvocationTargetException && ex.getCause() != null) {
+                                throw new IllegalStateException((ex).getCause());
+                            }
                             throw new IllegalStateException(ex);
                         }
                     }
@@ -282,7 +290,7 @@ public final class PluginFactoryExt {
                         throw new IllegalStateException("Unable to instantiate output: " + pluginClass);
                     }
                 } else if (type == PluginLookup.PluginType.FILTER) {
-                    final Class<Filter> cls = (Class<Filter>) unwrapIfNecessary(pluginClass.klass());
+                    final Class<Filter> cls = (Class<Filter>) pluginClass.klass();
                     Filter filter = null;
                     if (cls != null) {
                         try {
@@ -291,6 +299,9 @@ public final class PluginFactoryExt {
                             filter = ctor.newInstance(id, config, executionContext.toContext(type));
                             PluginUtil.validateConfig(filter, config);
                         } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | InvocationTargetException ex) {
+                            if (ex instanceof InvocationTargetException && ex.getCause() != null) {
+                                throw new IllegalStateException((ex).getCause());
+                            }
                             throw new IllegalStateException(ex);
                         }
                     }
@@ -301,7 +312,7 @@ public final class PluginFactoryExt {
                         throw new IllegalStateException("Unable to instantiate filter: " + pluginClass);
                     }
                 } else if (type == PluginLookup.PluginType.INPUT) {
-                    final Class<Input> cls = (Class<Input>) unwrapIfNecessary(pluginClass.klass());
+                    final Class<Input> cls = (Class<Input>) pluginClass.klass();
                     Input input = null;
                     if (cls != null) {
                         try {
@@ -310,7 +321,7 @@ public final class PluginFactoryExt {
                             input = ctor.newInstance(id, config, executionContext.toContext(type));
                             PluginUtil.validateConfig(input, config);
                         } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | InvocationTargetException ex) {
-                            if (ex instanceof InvocationTargetException) {
+                            if (ex instanceof InvocationTargetException && ex.getCause() != null) {
                                 throw new IllegalStateException((ex).getCause());
                             }
                             throw new IllegalStateException(ex);
@@ -323,7 +334,7 @@ public final class PluginFactoryExt {
                         throw new IllegalStateException("Unable to instantiate input: " + pluginClass);
                     }
                 } else if (type == PluginLookup.PluginType.CODEC) {
-                    final Class<Codec> cls = (Class<Codec>) unwrapIfNecessary(pluginClass.klass());
+                    final Class<Codec> cls = (Class<Codec>) pluginClass.klass();
                     Codec codec = null;
                     if (cls != null) {
                         try {
@@ -332,7 +343,7 @@ public final class PluginFactoryExt {
                             codec = ctor.newInstance(config, executionContext.toContext(type));
                             PluginUtil.validateConfig(codec, config);
                         } catch (NoSuchMethodException | IllegalAccessException | InstantiationException | InvocationTargetException ex) {
-                            if (ex instanceof InvocationTargetException) {
+                            if (ex instanceof InvocationTargetException && ex.getCause() != null) {
                                 throw new IllegalStateException((ex).getCause());
                             }
                             throw new IllegalStateException(ex);
@@ -350,10 +361,6 @@ public final class PluginFactoryExt {
                 }
             }
         }
-    }
-
-    private static Object unwrapIfNecessary(Object o) {
-        return (o instanceof JavaProxy) ? ((JavaProxy) o).getObject() : o;
     }
 
     @JRubyClass(name = "ExecutionContextFactory")
